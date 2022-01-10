@@ -1,0 +1,125 @@
+---
+title: "Supervised Dimensional Reduction"
+author: "J. Di Iorio, F. Chiaromonte"
+date: "3/29/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\section{Libraries}
+We are going to use some new and old libraries.
+
+```{r}
+library(tidyverse) # for data manipulation and visualization
+library(plotly) # for plots in 3D
+library(ggplot2) # for plots in 2D
+library(mvtnorm) #to generate multivariate normal distribution
+library(MASS)
+library(dr) # for SIR
+library(factoextra)
+```
+
+\section{Data}
+Let’s first define a function to generate a Gaussian. This function takes four arguments:
+\begin{itemize}
+\item n: number of observations;
+\item center: the mean of the Gaussian
+\item sigma: the covariance matrix
+\item label: the cluster label
+\end{itemize}
+```{r}
+generateGaussianData <- function(n, center, sigma, label) {
+  data = rmvnorm(n, center, sigma)
+  data = data.frame(data)
+  names(data) = c("x", "y", "z")
+  data = data %>% mutate(class=factor(label))
+  data
+}
+```
+
+Now let's simulate a dataset. We plot the data
+```{r}
+# cluster 1
+n = 200
+center = c(2, 8, 6)
+sigma = matrix(c(1,0.88,0.88,0.88, 1,0.88,0.88,0.88, 1), nrow = 3, byrow=T)
+group1 = generateGaussianData(n, center, sigma, 1)
+  
+# cluster 2
+n = 200
+center = c(4, 8, 6)
+sigma = matrix(c(1,0.88,0.88,0.88, 1,0.88,0.88,0.88, 1), nrow = 3, byrow=T)
+group2 = generateGaussianData(n, center, sigma, 2)
+
+# cluster 3
+n = 200
+center = c(6, 8, 6)
+sigma = matrix(c(1,0.88,0.88,0.88, 1,0.88,0.88,0.88, 1), nrow = 3, byrow=T)
+group3 = generateGaussianData(n, center, sigma, 3)
+  
+# all data
+df = bind_rows(group1, group2, group3)
+```
+
+Now let's plot our simulated data.
+```{r}
+library(plotly)
+fig <- plot_ly(df, x = ~x, y = ~y, z = ~z, color = ~class, colors = c('#b3e378', '#81e5f0', '#ed5391'))
+fig <- fig %>% add_markers()
+fig <- fig %>% layout(scene = list(xaxis = list(title = 'x'),
+                                   yaxis = list(title = 'y'),
+                                   zaxis = list(title = 'z')))
+
+fig
+```
+
+\section{LDA vs PCA}
+\subsection{LDA}
+Let's perform LDA:
+```{r}
+lda.df <- lda(factor(class) ~ x + y + z, data = df)
+lda.df
+```
+
+Let us plot the projections on LD1 and LD2
+```{r}
+# prefiction on df to get projections
+predmodel.lda = predict(lda.df, data=df)
+
+# projections with original class 
+newdata <- data.frame(type = df$class, lda = predmodel.lda$x)
+library(ggplot2)
+ggplot(newdata) + geom_point(aes(lda.LD1, lda.LD2, colour = type), size = 2.5)
+
+```
+
+\subsection{PCA}
+Now let us perform PCA.
+```{r}
+pc <- prcomp(df[,c(1,2,3)])
+get_eig(pc)
+
+```
+This is the corresponding biplot: just considering the first principal component it is impossibile to notice differences within the three groups (all the groups are overlapped).
+```{r}
+fviz_pca_biplot(pc, col.var= "#2E9FDF", col.ind= df$class, label="var")
+ggplot(newdata) + geom_point(aes(lda.LD1, lda.LD2, colour = type), size = 2.5)
+```
+
+\section{SIR}
+
+Now we use the SIR (Sliced Inversion Regression) in the dr package
+```{r}
+dr_res <- dr(class ~ x + y + z, data = df, method='sir')
+plot(dr_res, col=df$class)
+```
+
+```{r}
+names(dr_res)
+```
+
+
+

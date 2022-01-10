@@ -1,0 +1,273 @@
+---
+title: "PCA"
+author: "J. Di Iorio, F. Chiaromonte"
+date: "2/21/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Principal Component Analysis (PCA) is a Dimensional Reduction technique for unsupervised data. It transforms data from a high-dimensional space into a low-dimensional space so that the low-dimensional representation retains some meaningful properties of the original data, ideally close to its intrinsic dimension. Working in high-dimensional spaces can be undesirable for many reasons so it could be useful to project the features to a space of fewer dimensions.
+
+\section{Libraries}
+We are going to use \textbf{cluster},\textbf{factoextra} and \textbf{NbClust}
+
+```{r}
+library(mvtnorm) #for the toy example
+library(NbClust)
+library(factoextra)
+```
+
+\section{Data} 
+Today we are going to use two dataset: \textbf{decathlon2} data set available in the \textbf{decathlon2} and the \textbf{food} data set in the \textbf{Food.txt} file.  
+
+The \textbf{decathlon2} data set consists of 27 observations (athletes) on the following 13 variables (performance).
+```{r}
+library(factoextra)
+help(decathlon2)
+head(decathlon2)
+```
+
+The \textbf{food} data set ...
+
+\section{A Toy Example of Dimensional Reduction}
+Let us generate a bivariate data set linearly dependending from a Gaussian Distribution with higher variance on the $y$-axis.
+
+```{r}
+library(mvtnorm)
+mu  <-  c(1,2) # Mean vector: mean_column1 = 1 ; mean_column2 = 2
+sig <-  cbind(c(1,1), c(1,4)) # Variance matrix
+n   <-  100 # number of units
+
+X <- rmvnorm(n, mu, sig) # data generation
+head(X)
+plot(X, asp=1) # plot our data
+
+```
+
+How can we dimensionally reduce my data set? By reducing the number of features (columns) in different ways:
+\subsection{Using the sample mean}
+The sample mean is the easiest 0-dimensional reduction of data because it allows to reduct the data to one single point.
+
+```{r}
+med <- colMeans(X)
+med
+
+# plotting the mean
+plot(X, asp=1)
+points(med[1], med[2], col='red', pch=16)
+```
+
+What is the Variance?
+
+How much information I am losing in this way?
+
+What is the error?
+I can represent the error in this way: 
+```{r}
+# plotting the mean and the error
+plot(X, asp=1)
+points(med[1], med[2], col='red', pch=16)
+for(i in 1:100)
+  lines(rbind(X[i,], med), col='red')
+```
+
+We are collapsing our data to one point, the sample mean (also identified as PC0). The error is high.
+
+\subsection{Projecting the data on a new axis}
+I can identify two axis from the sample mean: an $horizontal$-axis, and a $vertical$-axis.
+```{r}
+# for the horizontal-axis
+plot(X, asp=1)
+points(med[1], med[2], col='red', pch=16)
+abline(h=med[2], lty=2)
+# projecting data point on the axis
+points(X[,1], rep(med[2], n), col='red')
+# computing the variance of the red dots
+var(X[,1]) 
+
+# for the vertical-axis
+abline(v=med[1], lty=2)
+# projecting data point on the axis
+points(rep(med[1], n), X[,2], col='blue') 
+# computing the variance of the blue dots
+var(X[,2])
+```
+Which of the two axis maximizes the variance?
+```{r}
+var(X[,2]) > var(X[,1])
+```
+
+The vertical axis. Blue points are more scattered and the error (sum of the lenghts of blue segments) is lower.
+
+```{r}
+par(mfrow=c(1,2))
+# ASSE ORIZZONTALE
+plot(X, asp=1)
+abline(h=med[2], lty=2)
+points(X[,1], rep(med[2], n), col='red')
+for(i in 1:100)
+  lines(rbind(X[i,], c(X[i,1], med[2])), col='red')
+
+# ASSE VERTICALE
+plot(X, asp=1)
+abline(v=med[1], lty=2)
+points(rep(med[1], n), X[,2], col='blue') 
+for(i in 1:100)
+  lines(rbind(c(med[1],X[i,2]),X[i,]), col='blue')
+```
+
+Using this strategy we can find the best axis, the axis that maximizes the variance.
+
+```{r}
+# Compute the variance of all the possible directions
+theta   <- seq(0, 2*pi, by = 2*pi/360) # angles
+Var       <- NULL
+for(i in 1:length(theta))
+{
+  a   <- c(cos(theta[i]), sin(theta[i])) # directional vector
+  v   <- cov(X %*% a) # projecting points
+  Var <- c(Var, v) # computing variance
+}
+
+# plotting the Variance for each direction/angle
+plot(theta, Var, type = 'l', col='red', lwd = 2)
+abline(v=c(0, pi/2, pi, 3/2*pi, 2*pi)) # fundamental angles
+```
+
+
+The maximum of the variance is identified by the maximun of the function.
+```{r}
+max.var   <- max(Var) # maximum variance
+max.theta <- theta[which.max(Var)] # theta angle with maximum variance
+
+# plotting the Variance for each direction/angle
+plot(theta, Var, type = 'l', col='red', lwd = 2)
+abline(v=c(0, pi/2, pi, 3/2*pi, 2*pi)) # fundamental angles
+points(max.theta, max.var, pch=16, col='blue')
+```
+
+We just found the first principal component (PC1) as the axis maximizing the variance.
+
+
+\section{PCA on decathlon2 data}
+We are going to perform PCA to the first 10 columns of the \textbf{decathlon2} data set (the ones about athletes performances).
+
+```{r}
+library("factoextra")
+data(decathlon2)
+
+# Considering the first the columns
+decathlon2<- decathlon2[, 1:10]
+head(decathlon2)
+```
+
+To perform PCA we can use the function \textbf{prcomp}.
+
+```{r}
+help(prcomp)
+```
+
+We can see that the function requires different parameters. Let us focus on:
+\begin{itemize}
+  \item \textbf{data:} a data frame
+  \item \textbf{scale:} a logical value (TRUE/FALSE) indicating whether the variables should be scaled to have unit variance before the analysis takes place
+\end{itemize}
+
+Therefore, to perform PCA after scaling the data, we do:
+
+```{r}
+res <- prcomp(decathlon2, scale = TRUE)
+str(res)
+```
+
+The result is a list containing 5 elements:
+\begin{itemize}
+\item \textbf{sdev:} the standard deviations of the principal components;
+\item \textbf{rotation:} the matrix of variable loadings;
+\item \textbf{center:} the centering used in \textbf{scale=TRUE};
+\item \textbf{scale:} the scaling used in \textbf{scale=TRUE};
+\item \textbf{x:} the scores, i.e. the rotated data;
+\end{itemize}
+
+\section{Selecting the number of components}
+The selection of the number of components is necessarily  ad-hoc because an unsupervised analysis does not have a prediction otucome that allows to select tuning parameters through cross-validation.
+
+However, some less subjective approaches are available.
+For instance, it is possible to consider the \textbf{percentage of variance explained} (\textbf{PVE}), or the \textbf{cumulative PVE}.
+```{r}
+# eigenvalue, PVE and cumulative PVE for each PC
+get_eig(res)
+```
+
+# Nello scree plot andro a cercare dei gomiti, come visto con elbow method.
+# Plotto manualmente la cumulata settando una soglia orizzontale di "accettazione" 
+# dell'80%
+
+Using this information I can plot the \textbf{Scree plot}.
+
+In the \textbf{Scree plot} I am looking for an \textit{elbow}, i.e. an inflection point.
+```{r}
+fviz_eig(res)
+```
+
+However, sometimes, it is not easy to identify an elbow or you want the cumulative PVE is too low. In this case, we recommend to plot the \textbf{cumulative PVE} after setting an \textbf{acceptance threshold}.
+
+```{r}
+plot(get_eig(res)$cumulative.variance.percent, type='b', axes=F, xlab='n', ylab='cumulative PVE', ylim=c(0,100))
+abline(h=100, col='blue')
+abline(h=80, lty=2, col='blue') # thesholding
+box()
+axis(2, at=0:100,labels=0:100)
+axis(1,at=1:ncol(decathlon2),labels=1:ncol(decathlon2),las=2)
+```
+
+\section{Loadings interpretation}
+Let us focus on the loadings, i.e the eigenvectors representing the directions of the PCs.
+
+```{r}
+loadings <- res$rotation
+loadings
+```
+
+We can plot the first two PCs (PC1 and PC2) in the \textbf{graph of variables}.
+In this plot the importance of the original feature is represented by the \textbf{color code} (red: \textit{high} - medium: \textit{blue} - white: \textit{low}), and by the lenght of the vector (\textit{close or not} to the circumference).
+
+```{r}
+fviz_pca_var(res,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE )    # Avoid text overlapping
+
+```
+
+If we want to show also the individuals we can use the \textbf{biplot of infividuals and variables}.
+
+```{r}
+fviz_pca_biplot(res, repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969"  # Individuals color
+)
+```
+
+In both the plots, positively correlated variables have same direction.
+Negatively correlated variables have opposite directions.
+
+Information regarding all the PCs (for instance the first 4) can be obtained in the following way:
+```{r}
+plot.new()
+par(mar = c(1,4,0,2), mfrow = c(4,1))
+for(i in 1:4)
+{
+  barplot(loadings[,i], ylim = c(-1, 1))
+  abline(h=0)
+}
+```
+
+\section{Multidimensional Scaling}
+Multidimensional scaling (MDS) is a means of visualizing the level of similarity of individual cases of a dataset. MDS is used to translate "information about the pairwise 'distances' among a set of n objects or individuals" into a configuration of n points mapped into an abstract Cartesian space.
+
+
+

@@ -1,0 +1,171 @@
+---
+title: "Smoothing"
+author: "J. Di Iorio, F. Chiaromonte"
+date: "1/1/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\section{Libraries}
+We are going to use \textbf{tidyverse} and \textbf{ggplot2}.
+
+```{r}
+library(tidyverse) # for data manipulation and visualization
+library(ggplot2) # for plots
+```
+
+
+\section{Data}
+We will try to locally regress and smooth the median duration of unemployment (uempmed) based on the \textbf{economics} dataset from \textbf{ggplot2} package. We wil focus on the latest 120 months (10 years from 2005 to 2015)
+
+```{r}
+data(economics)
+help(economics)
+head(economics)
+dim(economics)
+```
+
+We focus on the latest 120 months.
+```{r}
+economics <- economics[dim(economics)[1]:(dim(economics)[1]-119),]
+dim(economics)
+plot(economics$uempmed)
+lines(economics$uempmed, col='grey60')
+```
+Transform the date in a index from 1 (first measurement in 2005) to 120 (latest measurement in 2015).
+```{r}
+economics$index <- 1:120
+```
+
+
+\section{LOWESS}
+Perform LOWESS in the stats package with the loess command
+```{r}
+help(loess)
+```
+
+Let us focus on the following arguments:
+\begin{itemize}
+  \item \textbf{formula:} a formula specifying the numeric response and one to four numeric predictors; 
+  \item \textbf{data:} the dataframe;
+  \item \textbf{span:} the parameter which controls the degree of smoothing;
+  \item \textbf{degree:} the degree of the polynomials to be used, normally 1 or 2;
+  \item \textbf{family:} if gaussian fitting is by least-squares, and if symmetric a redescending estimator is used with Tukey's biweight function;
+\end{itemize}
+
+Let us try the different spans and different degrees.
+```{r}
+loess1_10 <- loess(uempmed ~ index, data = economics, span = 0.1, degree=1) 
+loess2_10 <- loess(uempmed ~ index, data = economics, span = 0.1, degree=2) 
+plot(economics$uempmed, main="LOESS span=0.1")
+lines(predict(loess1_10), col='red')
+lines(predict(loess2_10), col='blue')
+
+# span=0.25
+loess1_25 <- loess(uempmed ~ index, data = economics, span = 0.25, degree=1) 
+loess2_25 <- loess(uempmed ~ index, data = economics, span = 0.25, degree=2) 
+plot(economics$uempmed, main="LOESS span=0.25")
+lines(predict(loess1_25), col='red')
+lines(predict(loess2_25), col='blue')
+
+# span=0.5
+loess1_50 <- loess(uempmed ~ index, data = economics, span = 0.5, degree=1) 
+loess2_50 <- loess(uempmed ~ index, data = economics, span = 0.5, degree=2) 
+plot(economics$uempmed, main="LOESS span=0.5")
+lines(predict(loess1_50), col='red')
+lines(predict(loess2_50), col='blue')
+```
+
+loess has the option of fitting the local model with an iterative algorithm which, after fitting a model in one iteration, detects outliers and down-weight them for the next iteration. To use this option, we use the argument family="symmetric".
+```{r}
+# span=0.25
+loess1_25sim <- loess(uempmed ~ index, data = economics, span = 0.25, degree=1, family="symmetric")
+plot(economics$uempmed, main="LOESS span=0.25")
+lines(predict(loess1_25), col='red')
+lines(predict(loess1_25sim), col='green',)
+```
+
+ggplot uses loess in its geom_smooth function
+```{r}
+economics %>% ggplot(aes(index,uempmed)) + geom_point() + geom_smooth()
+```
+
+We don't know the default parameters used in geom_smooth but we can change them in this way:
+```{r}
+economics %>% ggplot(aes(index,uempmed)) + geom_point() + geom_smooth(method="loess", span=0.15, methods.args = list(degree=1))
+```
+
+\section{Bin Smoothing and Kernel Smoothing}
+The general idea of smoothing is to group data points into strata in which the trend behind the data changes slowly. For this reason we can assumed the trend to be constant in a small window. In our case we can assume that the unemployment remained approximately the same within 3 month's time.
+
+The assumption implies that a good estimate is the average of the values in the window (in this case: 3 month's time). By computing this mean for every point (moving the window), we form an estimate fo the underlying curve.
+
+The command that we are going to use is \textbf{ksmooth}.
+```{r}
+help(ksmooth)
+```
+
+If the mean is computed giving the same weights to the points in the window we talk about "box" kernel.
+The result is a list with the original \textbf{x} and the new smoothed values \textbf{y}.
+```{r}
+window <- 3
+box_smooth <- ksmooth(economics$index, economics$uempmed, kernel='box', bandwidth = window)
+box_smooth
+```
+
+Let us plot our result using ggplot (not ordinary plot).
+```{r}
+economics %>% mutate(smooth = box_smooth$y) %>% ggplot(aes(index, uempmed)) + 
+  geom_point(size=3, alpha=0.5, color='grey') + geom_line(aes(index, smooth), color='red')
+```
+
+The result from the bin box smoother is quite wiggly. The reasons for this can be the bandwidth (too small) or the uniform weights. We can try to change the weights by giving to the center point of the window, more weight than far away points (so the points at the edge will receive very little weight).
+So we are using a weighted average where the weights are provided by a normal density.
+```{r}
+norm_smooth <- ksmooth(economics$index, economics$uempmed, kernel='normal', bandwidth = window)
+
+economics %>% mutate(smooth = norm_smooth$y) %>% ggplot(aes(index, uempmed)) + 
+  geom_point(size=3, alpha=0.5, color='grey') + geom_line(aes(index, smooth), color='red')
+```
+
+It is still wiggly! We need to change the bandwidth.
+```{r}
+window <- 6 #6 month's time
+norm_smooth <- ksmooth(economics$index, economics$uempmed, kernel='normal', bandwidth = window)
+
+economics %>% mutate(smooth = norm_smooth$y) %>% ggplot(aes(index, uempmed)) + 
+  geom_point(size=3, alpha=0.5, color='grey') + geom_line(aes(index, smooth), color='red')
+
+```
+
+\section{Quick Idea on Kernel Density Estimator}
+Let us simulate a new dataset. In the data we have the sex and the weights of 400 Serperior living in the Unima region.
+```{r}
+set.seed(1234)
+df <- data.frame(
+  sex=factor(rep(c("F", "M"), each=200)),
+  weight=round(c(rnorm(200, mean=55, sd=5),
+                 rnorm(200, mean=65, sd=5)))
+)
+head(df)
+```
+Let use a histograms
+```{r}
+ggplot(df, aes(x=weight)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666") 
+```
+We can adjust the default density with the adjust arguments (default is 1).
+What is the adjust function used for?
+```{r}
+ggplot(df, aes(x=weight)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666", adjust=1/2) 
+
+ggplot(df, aes(x=weight)) + 
+  geom_histogram(aes(y=..density..), colour="black", fill="white")+
+  geom_density(alpha=.2, fill="#FF6666", adjust=2) 
+```

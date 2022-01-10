@@ -1,0 +1,286 @@
+---
+title: "Classification"
+author: "J. Di Iorio, F. Chiaromonte"
+date: "2/28/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+\section{Libraries}
+We are going to use \textbf{tidyverse}, \textbf{caret}, \textbf{readxl} and \textbf{MASS}
+
+```{r}
+library(tidyverse) # for data manipulation and visualization
+library(readxl) # for reading xlsx files
+library(caret) # for statistical learning techniques
+library(MASS) # for AIC based stepwise regression
+library(ggplot2) # for plots
+library(klaR) # for LDA and QDA partition
+```
+
+\section{Data}
+
+Today we are going to use the \textbf{Titanic}  data set.  It is made up of 1309 rows and 15 attributes. Each row represents a passenger and the columns describe different attributes about each passenger. 
+
+
+```{r cars}
+df <- read_excel("Titanic.xlsx")
+head(df)
+```
+
+Let us see how our data are structured.
+```{r}
+str(df)
+```
+The type of some column is not the optimal one. We change it.
+```{r}
+df$pclass <- as.factor(df$pclass)
+df$survived <- as.factor(df$survived)
+df$Residence <- as.factor(df$Residence)
+df$body <- as.factor(df$body)
+df$Gender <- as.factor(df$Gender)
+```
+
+Let us summarize our data using \textbf{summary} which returns information for every column of the data set depending on the column type.
+```{r}
+summary(df)
+```
+
+We could drop some column: the ones having more than 50 percent of NAs and the ones we don't think could be useful for our analysis. We also can drop all those rows without age info.
+
+```{r}
+# dropping columns
+df <- df %>% dplyr::select(-c(name,ticket, fare, cabin, embarked, boat, body, home.dest)) 
+# filtering out rows
+df <- df %>% filter(!is.na(age))
+dim(df)
+```
+
+
+\section{Logistic Regression}
+
+The data is divided into training and testing set using a 75:25 ratio.
+```{r}
+set.seed(123)
+training_samples <- df$survived %>% createDataPartition(p = 0.75, list = FALSE)
+train <- df[training_samples, ]
+test <- df[-training_samples, ]
+```
+
+\subsection{A Simple Logistic Regression}
+Using the training set, we build a simple logistic regression model using sex as the only predictor for survival status of the passenger.
+
+```{r}
+simple_glm <- glm(survived ~ Gender, data = train, family = 'binomial')
+summary(simple_glm)
+```
+
+We look at the coefficient in this way:
+```{r}
+simple_glm$coefficients
+```
+
+Our model is $log(\frac{p(x)}{1-p(x)}) = \beta_{0} + \beta_{1}Gender$. In our case $\beta_{0} = Intercept$ and $\beta_{1}=Gender1$. Therefore, $log(\frac{p(x)}{1-p(x)}) = Intercept +Gender1*Gender$.
+
+Let us see how our model performs in terms of accuracy (proportion of correct predictions, both true positives and true negatives, among the total number of cases examined)
+
+```{r}
+# Test for accuracy
+predict_sex_survived <- predict(simple_glm, newdata = test,type = 'response') 
+# Since Survived can only be either 1 or 0, write if statement to round up of down the response
+predict_sex_survived <- ifelse(predict_sex_survived>0.5,1,0)
+accuracy <- mean(predict_sex_survived==test$survived)
+accuracy
+```
+
+Our result is "pretty good" and it is also consistent with the "women and children first" myth. 
+
+\subsection{A Simple Logistic Regression - Backward selection}
+Accuracy score is not too bad as a start, however we can further improve it by including more features. 
+Let us start with one model considering all the features.
+
+```{r}
+glm_complete <- glm(survived ~ ., data=train, family = 'binomial')
+summary(glm_complete)
+```
+
+Let us select the significant predictors using stepwise regression with AIC as the score. A new model is selected eventually as it produces a lower AIC score.
+```{r}
+glm_stepwise <- glm_complete %>% stepAIC(direction='both', trace = FALSE)
+summary(glm_stepwise)
+```
+
+Let us compare the two models (complete and AIC selected) using AIC
+```{r}
+AIC(glm_complete, glm_stepwise)
+```
+
+Using the second model, we can then compute the probability for survival and accuracy of the model.
+```{r}
+# Test for accuracy
+predict_sex_survived <- predict(glm_stepwise, newdata = test,type = 'response') 
+# Since Survived can only be either 1 or 0, write if statement to round up of down the response
+predict_sex_survived <- ifelse(predict_sex_survived>0.5,1,0)
+accuracy <- mean(predict_sex_survived==test$survived)
+accuracy
+```
+
+We can create also a confusion matrix (and statistics) to compare our prediction to the labels in the test set.
+```{r}
+confusionMatrix(as.factor(predict_sex_survived), test$survived)
+```
+
+\section{LDA and QDA}
+Let us apply LDA and QDA to a multi label dataset such as \textbf{iris}. We are going to use just the first two columns with a gaussian noise.
+```{r}
+iris2 <- iris[,c(1,2,5)]
+species_name <- iris$Species
+iris2[,1] <- iris2[,1] + rnorm(150, sd=0.025)
+iris2[,2] <- iris2[,2] + rnorm(150, sd=0.025)
+
+plot(iris2[,1:2], main='Iris.Sepal', xlab='Sepal.Length', ylab='Sepal.Width', pch=15)
+points(iris2[1:50,], col=2, pch=15)
+points(iris2[51:100,], col=4, pch=15)
+points(iris2[101:150,], col=3, pch=15)
+legend(min(iris[,1]), max(iris[,2]), legend=levels(species_name), fill=c(2,3,4))
+
+```
+Once again we create a train set and a test set.
+```{r}
+set.seed(123)
+training.samples <- species_name %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train <- iris2[training.samples, ]
+test <- iris2[-training.samples, ]
+```
+
+It is generally recommended to standardize/normalize continuous predictor before the analysis.
+```{r}
+# Estimate preprocessing parameters
+preproc.param <- train %>% 
+  preProcess(method = c("center", "scale"))
+# Transform the data using the estimated parameters
+train_transformed <- preproc.param %>% predict(train)
+test_transformed <- preproc.param %>% predict(test)
+
+
+```
+
+\subsection{LDA}
+Before performing LDA, consider:
+\begin{itemize}
+\item Inspecting the univariate distributions of each variable and make sure that they are normally distribute. If not, you can transform them using log and root for exponential distributions and Box-Cox for skewed distributions.
+\item Removing outliers from your data and standardize the variables to make their scale comparable.
+\end{itemize}
+```{r}
+lda.iris <- lda(factor(Species)~ Sepal.Length + Sepal.Width, data=train_transformed)
+lda.iris
+```
+
+The linear discriminant function from the result in above can be identified using the Coefficients of Linear discriminants. The “proportion of trace”" that is printed is the percentage separation achieved by each discriminant function.
+
+We will find the model accuracy for training data.
+```{r}
+predmodel.train.lda = predict(lda.iris, data=train_transformed)
+confusionMatrix(as.factor(predmodel.train.lda$class), train_transformed$Species)
+
+```
+
+
+The below plot shows how the response class has been classified by the LDA classifier. The X-axis shows the value of line defined by the coefficient of linear discriminant for LDA model. The two groups are the groups for response classes.
+```{r}
+# first discriminant
+ldahist(predmodel.train.lda$x[,1], g= predmodel.train.lda$class) 
+# second discriminant
+ldahist(predmodel.train.lda$x[,2], g= predmodel.train.lda$class) 
+```
+
+See new x with original labels
+```{r}
+#convert to data frame 
+newdata <- data.frame(type = train_transformed$Species, lda = predmodel.train.lda$x)
+library(ggplot2)
+ggplot(newdata) + geom_point(aes(lda.LD1, lda.LD2, colour = type), size = 2.5)
+```
+
+See geometric division
+```{r}
+library(klaR)
+partimat(factor(Species)~ Sepal.Length + Sepal.Width, data=train_transformed, method = "lda")
+```
+
+Now we will check for model accuracy for test data.
+```{r}
+predmodel.test.lda = predict(lda.iris, newdata=test_transformed)
+confusionMatrix(as.factor(predmodel.test.lda$class), test_transformed$Species)
+```
+
+\subsection{QDA}
+Next we will fit the model to QDA as below. The command is similar to LDA and it outputs the prior probabilities and Group means. Please note that ‘prior probability’ and ‘Group Means’ values are same as of LDA.
+
+```{r}
+qda.iris <- qda(factor(Species)~ Sepal.Length + Sepal.Width, data=train_transformed)
+qda.iris
+```
+
+We will find the model accuracy for training data.
+```{r}
+predmodel.train.qda = predict(qda.iris, data=train_transformed)
+confusionMatrix(as.factor(predmodel.train.qda$class), train_transformed$Species)
+```
+
+We can see the geometric partition
+```{r}
+library(klaR)
+partimat(factor(Species) ~ Sepal.Length + Sepal.Width, data=train_transformed, method = "qda", col.correct='green', col.wrong='red')
+```
+ 
+\section{$k$NN}
+We are going to use knn3Train() function on iris2 dataset.
+Let us train the knn with $k = 1,2,3,10$
+```{r}
+knn_iris1 <- knn3(factor(Species) ~ Sepal.Length + Sepal.Width, data=train_transformed, k = 1)
+knn_iris2 <- knn3(factor(Species) ~ Sepal.Length + Sepal.Width, data=train_transformed, k = 2)
+knn_iris3 <- knn3(factor(Species) ~ Sepal.Length + Sepal.Width, data=train_transformed, k = 3)
+
+knn_iris10 <- knn3(factor(Species) ~ Sepal.Length + Sepal.Width, data=train_transformed, k = 10)
+```
+
+Hand-made KNN:
+```{r}
+plot(test_transformed[,1:2], main='Iris.Sepal', xlab='Sepal.Length', ylab='Sepal.Width',pch=16, col='grey')
+points(train_transformed[which(train_transformed$Species=="setosa"),1:2], col='red', pch=1)
+points(train_transformed[which(train_transformed$Species=="virginica"),1:2], col='blue', pch=1)
+points(train_transformed[which(train_transformed$Species=="versicolor"),1:2], col='green', pch=1)
+```
+
+And now let us predict new points labels in the test set.
+Using $k=1$
+```{r}
+predict(knn_iris1, test_transformed, type='prob')
+predict_test_knn1 <- predict(knn_iris1, test_transformed, type='class')
+confusionMatrix(predict_test_knn1, test_transformed$Species)
+```
+
+```{r}
+predict(knn_iris2, test_transformed, type='prob')
+predict_test_knn2 <- predict(knn_iris2, test_transformed, type='class')
+confusionMatrix(predict_test_knn2, test_transformed$Species)
+```
+```{r}
+# k=3
+predict(knn_iris3, test_transformed, type='prob')
+predict_test_knn3 <- predict(knn_iris3, test_transformed, type='class')
+confusionMatrix(predict_test_knn3, test_transformed$Species)
+```
+```{r}
+# k=10
+predict(knn_iris10, test_transformed, type='prob')
+predict_test_knn10 <- predict(knn_iris10, test_transformed, type='class')
+confusionMatrix(predict_test_knn10, test_transformed$Species)
+```
+

@@ -1,0 +1,39 @@
+begin model SIR_RN
+ begin parameters
+  pBeta  = 1
+  pGamma = 4
+ end parameters
+ begin init
+  S = 1000
+  I = 2
+  R = 0
+ end init
+ begin reactions
+  S + I -> I + I , pBeta
+      I -> R     , pGamma
+ end reactions
+
+//
+//
+//
+//write(fileOut="SIR_ODE.ode",format=ODE)
+//
+//R0 = pBeta/pGamma
+// R0=0.25
+setParam(param=pGamma,expr=4)
+simulateODE(tEnd=50,csvFile="sirR0_0.25")
+
+// R0=0.5
+setParam(param=pGamma,expr=2)
+simulateODE(tEnd=50,csvFile="sirR0_0.50")
+
+// R0=1
+setParam(param=pGamma,expr=1)
+simulateODE(tEnd=50,csvFile="sirR0_1.00")
+
+// R0=2
+setParam(param=pGamma,expr=0.5)
+simulateODE(tEnd=50,csvFile="sirR0_2.00")
+
+
+end model

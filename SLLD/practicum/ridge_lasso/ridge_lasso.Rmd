@@ -1,0 +1,164 @@
+---
+title: "Ridge and Lasso"
+author: "J. Di Iorio, F. Chiaromonte"
+date: "3/21/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\section{Libraries}
+We are going to use some new (glmnet) and old libraries.
+
+```{r}
+library(tidyverse) # for data manipulation and visualization
+library(ggplot2) # for plots
+library(caret)
+library(glmnet) # for ridge and lasso
+```
+
+\section{Data}
+We will use the Body Fat dataset available in the Datasets folder of our course.
+The data concerns a sample of 252 men, and contains 15 different variables. We want to understand if we can reliably describe and predict body fat percentage on the basis of these variables, using regression. For age, we only have a binary indicator separating men below and above 45 years. The body measurements, on the other hand, are all continuous variables. 
+```{r}
+df <- read.table('BODY_FAT.TXT', header=TRUE)
+names(df)
+```
+
+We want to predict "SiriBF." using the other features excepted "Density".
+So we drop the "Density" column.
+```{r}
+df <- df[,-1]
+```
+
+
+\section{Ridge}
+Let us perform ridge regression using the GLMnet package.
+Let us identify predictors and indipendent variable
+```{r}
+# getting the predictors
+x_var <- data.matrix(df[,-1])
+# getting the indipendent variable
+y_var <- df[,"SiriBF."]
+```
+
+Now we can perform ridge regression using glmnet with $alpha = 0$. We are not using a pre-defined set of $\lambda$ but we can supply a user-defined lambda sequence to try in the $lambda$ argument.
+```{r}
+ridge <- glmnet(x_var, y_var, alpha=0)
+summary(ridge)
+```
+The summary is different from the one we know from linear regression. The reason behind this fact is that ridge regression involves tuning a hyperparameter, $\lambda$. The code above runs the model several times for different values of lambda. We can see each single result running "ridge".
+
+We can automate this task of finding the optimal lambda value using the cv.glmnet function. The function does k-fold cross-validation for glmnet, produces a plot, and returns a value (the best) for lambda.
+```{r}
+cv_ridge <- cv.glmnet(x_var, y_var, alpha = 0)
+cv_ridge
+```
+
+Two particular values of lambda are highlighted: the minimum (min) and the largest value of lambda such that error is within 1 standard error of the minimum (1se). We can plot them in this way:
+```{r}
+plot(cv_ridge)
+```
+To see the two lambdas aforementioned:
+```{r}
+cv_ridge$lambda.min
+cv_ridge$lambda.1se
+```
+
+Let us see how beta coefficients changes by modifying lambda
+```{r}
+lbs_fun <- function(fit, offset_x=1, ...) {
+  L <- length(fit$lambda)
+  x <- log(fit$lambda[L])+ offset_x
+  y <- fit$beta[, L]
+  labs <- names(y)
+  text(x, y, labels=labs, ...)
+}
+plot(ridge, xvar = "lambda", label=T)
+lbs_fun(ridge)
+abline(v=cv_ridge$lambda.min, col = "red", lty=2)
+abline(v=cv_ridge$lambda.1se, col="blue", lty=2)
+```
+
+Let us rebuilt the model and see the coefficient with the minimum $\lambda$.
+```{r}
+min_ridge <- glmnet(x_var, y_var, alpha=0, lambda= cv_ridge$lambda.min)
+coef(min_ridge)
+```
+
+We can use this model to make predictions on the training set.
+```{r}
+# Make predictions on the test data
+predictions <- min_ridge %>% predict(x_var) %>% as.vector()
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, y_var),
+  Rsquare = R2(predictions, y_var)
+)
+```
+
+Be careful! We are making predictions and assessing the goofness of our model on the training set. Is it the best decision? What would you suggest me to do?
+
+\section{Lasso}
+Let us perform ridge regression using the GLMnet package.
+Let us identify predictors and indipendent variable
+```{r}
+# getting the predictors
+x_var <- data.matrix(df[,-1])
+# getting the indipendent variable
+y_var <- df[,"SiriBF."]
+```
+
+Now we can perform ridge regression using glmnet with $alpha = 1$. We are not using a pre-defined set of $\lambda$ but we can supply a user-defined lambda sequence to try in the $lambda$ argument.
+```{r}
+lasso <- glmnet(x_var, y_var, alpha=1)
+summary(lasso)
+```
+
+Once again, we had to tune a hyperparameter, $\lambda$. The code above runs the model several times for different values of lambda. We can see each single result running "lasso".
+
+Identically to lasso regression, we can automate this task of finding the optimal lambda value using the cv.glmnet function which performs a k-fold cross-validation for glmnet, produces a plot, and returns a value (the best) for lambda.
+```{r}
+cv_lasso <- cv.glmnet(x_var, y_var, alpha = 1)
+cv_lasso
+plot(cv_lasso)
+```
+
+Once again we have the min and the 1se lambda. It is straightforward to see that the number of Nonzero predictors is lower than the ones in Ridge regression.
+
+Now, let us see how beta coefficients changes by modifying lambda
+```{r}
+lbs_fun <- function(fit, offset_x=1, ...) {
+  L <- length(fit$lambda)
+  x <- log(fit$lambda[L])+ offset_x
+  y <- fit$beta[, L]
+  labs <- names(y)
+  text(x, y, labels=labs, ...)
+}
+plot(lasso, xvar = "lambda", label=T)
+lbs_fun(lasso)
+abline(v=cv_lasso$lambda.min, col = "red", lty=2)
+abline(v=cv_lasso$lambda.1se, col="blue", lty=2)
+```
+
+Let us rebuilt the model and see the coefficient with the minimum $\lambda$.
+```{r}
+min_lasso <- glmnet(x_var, y_var, alpha=1, lambda= cv_lasso$lambda.min)
+coef(min_lasso)
+
+se_lasso <- glmnet(x_var, y_var, alpha=1, lambda= cv_lasso$lambda.1se)
+coef(se_lasso)
+```
+
+We can use this model to make predictions on the training set.
+```{r}
+# Make predictions on the test data
+predictions <- min_lasso %>% predict(x_var) %>% as.vector()
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, y_var),
+  Rsquare = R2(predictions, y_var)
+)
+```
