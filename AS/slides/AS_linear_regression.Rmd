@@ -1,0 +1,157 @@
+---
+title: "AS -- Linear model for regression"
+author: "Lorenzo Testa"
+date: "3/10/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Questo notebook è liberamente ispirato a James, Witten, Hastie, Tibshirani (2013), "An Introduction to Statistical Learning", Springer. 
+
+## R Markdown
+Questo è un documento R Markdown. Markdown è un modo semplice per creare documenti formattati ed esportarli in formato HTML, PDF, MS Word. Per ulteriori dettagli su come usare R Markdown (ad esempio per l'esame del corso) guarda  <http://rmarkdown.rstudio.com>.
+
+Quando clicchi sul bottone **Knit**, un documento viene generato, includendo sia il contenuto sia l'output di ciascun blocco di codice R inserito nel documento. Un blocco ("chunk") di codice R è come il seguente:
+
+```{r chunk}
+print('Questo è un R chunk')
+```
+
+## Librerie
+La funzione `library()` è usata per caricare librerie, ossia gruppi di funzioni e data sets che non sono inclusi nella distribuzione di base di R. Qui, noi carichiamo MASS, che contiene il data set che ci serve per imparare i comandi di base. 
+
+```{r}
+library(MASS)
+```
+
+Nel caso in cui si voglia utilizzare una libreria che non è installata in locale, la si può scaricare con il comando `install.packages("name of library")`.
+
+## Regressione lineare semplice (Simple linear regression)
+
+Salviamo il data set Boston, contenuto in MASS, in una variabile chiamata data. Boston contiene il valore di case nei quartieri attorno a Boston. Noi proveremo a predire il valore mediano delle case (medv) usando i predittori nel data set. 
+```{r}
+data <- Boston
+head(data)
+```
+Proviamo a vedere il nome delle variabili:
+```{r}
+names(data)
+```
+
+E le dimensioni del data set:
+```{r}
+dim(data)
+```
+
+Proviamo ad avere una prima idea sulla distribuzione di una variabile a piacere:
+```{r}
+hist(data$medv)
+```
+
+Proviamo a regredire medv su lstat (percentuale di famiglie in uno stato socioeconomico basso)
+```{r}
+lm_fit<-lm(medv~lstat, data)
+```
+
+Vediamo ora il risultato della regressione!
+```{r}
+summary(lm_fit)
+```
+
+Se vogliamo i coefficienti stimati
+```{r}
+coef(lm_fit)
+```
+
+Se vogliamo i loro intervalli di confidenza
+```{r}
+confint(lm_fit)
+```
+
+Facciamo un plot!
+```{r}
+plot(data$lstat, data$medv)
+abline(lm_fit, col='red')
+```
+
+E un plot su diagnostica
+```{r}
+par(mfrow=c(2,2))
+plot(lm_fit)
+```
+
+In alternativa `residuals()` calcola residui e `rstudent()` calcola residui studentized. Con questi comandi possiamo replicare i plot precedenti. Ad esempio:
+```{r}
+par(mfrow=c(1,1))
+plot(predict(lm_fit), residuals(lm_fit))
+```
+
+Sembra proprio che ci sia qualche evidenza di non linearità (perché?).
+
+## Regressione lineare multipla (multiple linear regression)
+
+Per fittare una regressione lineare multipla, il comando rimane lo stesso, ossia `lm()`. Proviamo quindi questo modello:
+```{r}
+lm_fit2 <- lm(medv~lstat+age, data)
+summary(lm_fit2)
+```
+
+Oppure potremmo fittare un modello con tutti i regressori disponibili (e qui c'è uno shortcut, per non doverli scrivere tutti!)
+```{r}
+lm_fit_all <- lm(medv~., data)
+summary(lm_fit_all)
+```
+
+### VIF
+
+Proviamo a calcolare i VIF. Una funzione per farlo esiste già, ma è nel pacchetto car, che dobbiamo installare. Quindi:
+```{r}
+#install.packages('car')
+library(car)
+vif(lm_fit_all)
+```
+
+Tax ha un VIF non basso. Proviamo a toglierlo:
+```{r}
+lm_fit_all_but_tax <- lm(medv~.-tax, data)
+summary(lm_fit_all_but_tax)
+```
+
+### Termini di interazione
+Possiamo anche aggiungere termini di interazione direttamente dal comando `lm()`. La sintassi è la seguente:
+```{r}
+lm_fit_interaction <- lm(medv~lstat*age, data)
+summary(lm_fit_interaction)
+```
+
+In principio si potrebbe usare anche `lm(medv~lstat+age+lstat:age, data)`, ma è ovviamente più lungo. 
+
+
+### Trasformazioni non lineari dei predittori
+Possiamo inserire trasformazioni non lineari dei predittori direttamente nel comando `lm()`, così (se vogliamo inserire il quadrato):
+```{r}
+lm_fit_non_linear_transformation <- lm(medv~lstat+I(lstat^2), data)
+summary(lm_fit_non_linear_transformation)
+```
+
+Oppure possiamo utilizzare `poly()` all'interno del comando `lm()` per indicare di quale variabile e fino a che grado vogliamo inserire trasformazioni polinomiali. Potremmo ovviamente decidere di usare anche dei logaritmi, con `log()`. 
+
+### Predittori qualitativi
+Cambiamo data set per imparare a usare predittori qualitativi
+```{r}
+#install.packages('ISLR')
+library(ISLR)
+data <- Carseats
+```
+
+Proviamo a predire sales usando dei predittori qualitativi.
+```{r}
+lm_fit_qualitative <- lm(Sales~.+Income:Advertising+Price:Age, data)
+summary(lm_fit_qualitative)
+
+```
+
+
