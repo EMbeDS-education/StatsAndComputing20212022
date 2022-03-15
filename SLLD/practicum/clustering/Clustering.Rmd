@@ -190,7 +190,7 @@ clHeight <- 4.5
 cluster_h <- cutree(hc_complete, h = clHeight)    #identify groups below a certain height 
 cluster_h
 
-fviz_dend(hc_complete, h = 3.8, k_colors = "jco", 
+fviz_dend(hc_complete, h = clHeight, k_colors = "jco", 
           as.ggplot = TRUE, show_labels = FALSE, 
           main='Euclidean-Complete')+
   geom_hline(yintercept = clHeight, linetype = 2, col="red")
@@ -274,7 +274,7 @@ res$cluster
 pairs(iris4, col=res$cluster) # pairwise scatterplot with clusters
 ```
 
-\section{Hierachical Clustering and $k$-means with one single command}
+\section{Hierarchical Clustering and $k$-means with one single command}
 
 Using the function \textbf{eclust} (in \textbf{factoextra}) it is possible to perform both methods. 
 Its advantages include:
@@ -416,7 +416,7 @@ fviz_nbclust(iris4, kmeans, method = "silhouette")+
 ```
 
 
-For Agglomerative Heirarchical Clustering:
+For Agglomerative Hierarchical Clustering:
 ```{r}
 # Silhouette method
 fviz_nbclust(iris4, hcut, method = "silhouette")+
