@@ -1,0 +1,79 @@
+---
+title: "AS_binary_classification"
+author: "Lorenzo Testa"
+date: "3/15/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Questo notebook è liberamente ispirato a James, Witten, Hastie, Tibshirani (2013), "An Introduction to Statistical Learning", Springer. Altri riferimenti per i contenuti visti a lezione: Wasserman (2004), "All of Statistics: A Concise Course in Statistical Inference", Springer; Dobson, Barnett (2008), "An Introduction to Generalized Linear Models", CHAPMAN & HALL/CRC
+
+# Dati
+
+```{r}
+library(ISLR)
+data <- Smarket
+names(data)
+dim(data)
+summary(data)
+```
+
+Questo data set contiene i ritorni percentuali dell'indice S&P 500 nell'arco di 1250 giorni, dall'inizio del 2001 alla fine del 2005. Per ogni data, abbiamo i ritorni percentuali di ciascuno dei cinque giorni di trading precedenti, il numero di shares scambiate nel giorno precedente in miliardi, il ritorno percentuale odierno, la direzione del mercato odierna.
+
+Proviamo a ottenere le correlazioni.
+```{r}
+cor(data[,-9])
+```
+
+Chiaramente abbiamo una correlazione molto bassa tra ritorni attuali e ritorni precedenti... Vediamo di plottare il volume, che sembra essere l'unica variabile correlata con gli anni. 
+```{r}
+par(mfrow=c(1,2))
+plot(data$Volume)
+plot(data$Year, data$Volume)
+par(mfrow=c(1,1))
+```
+
+## Regressione logistica
+Soliti comandi. Interessantela funzione `glm()`.
+```{r}
+glm_fit <- glm(Direction~.-Today-Year, data=data, family=binomial)
+summary(glm_fit)
+```
+
+Proviamo ad ottenere le probabilità predette:
+```{r}
+glm_probs <- predict(glm_fit, type='response')
+```
+
+E creiamo una confusion matrix con threshold a 0.5:
+```{r}
+predictions<-rep('Down', 1250)
+predictions[glm_probs>0.5]<-'Up'
+table(predictions, data$Direction)
+mean(predictions==data$Direction)
+```
+Questo `mean()` ci racconta quanto accurato è il nostro modello di classificazione sul training set. Tuttavia, come sappiamo, l'errore sul training set è una stima overottimista dell'errore effettuato su un test set. Di conseguenza, proviamo a effettuare una stima hold out. 
+
+```{r}
+train=data[data$Year<2005,]
+test=data[data$Year==2005,]
+glm_fit_train <- glm(Direction~.-Year-Today, data=train, family=binomial)
+glm_probs_test <- predict(glm_fit_train, test, type='response')
+predictions<-rep('Down', dim(test)[1])
+predictions[glm_probs_test>0.5]<-'Up'
+table(predictions, test$Direction)
+mean(predictions==test$Direction)
+```
+
+Cambiamo thresholds... Usando una ROC curve!
+```{r}
+#install.packages('pROC')
+library(pROC)
+test_roc = roc(test$Direction ~ glm_probs_test, plot = TRUE, print.auc = TRUE)
+```
+
+
+
