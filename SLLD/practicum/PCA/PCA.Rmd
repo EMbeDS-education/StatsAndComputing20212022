@@ -1,5 +1,5 @@
 ---
-title: "*Clustering*"
+title: "*Principal Component Analysis*"
 author: "L. Insolia, F. Chiaromonte (special thanks to J. Di Iorio)"
 date: "March 17th 2022"
 output:
