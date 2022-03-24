@@ -44,7 +44,7 @@ It contains 1309 rows and 15 columns. Each row represents a passenger and the co
 
 ```{r cars}
 df <- read_excel("Titanic.xlsx")
-head(df)
+head(df, 10)
 ```
 
 Let's see the internal data structure.
@@ -99,7 +99,7 @@ summary(df)
 To assess prediction accuracy, we split the data into training and testing sets (at random, with no replacement). These encompass 75 and 25 percent of the points, respectively.
 ```{r}
 set.seed(123)
-# set.seed(1)                                 # try to re-run the analysis with this
+# set.seed(1)               # try to re-run the analysis with this
 training_samples <- df$survived %>% 
   caret::createDataPartition(p = 0.75, list = FALSE)
 
@@ -164,6 +164,8 @@ predict_sex_survived <- ifelse(predict_sex_survived>0.5, 1, 0)
 # calculate accuracy
 accuracySat <- mean(predict_sex_survived==test$survived)
 accuracySat
+
+confusionMatrix(as.factor(predict_sex_survived), test$survived)
 ```
 
 
@@ -225,6 +227,9 @@ test <- iris2[-training.samples, ]
 
 It is generally recommended to standardize/normalize continuous predictor before the analysis.
 ```{r}
+
+help(preProcess)
+
 # Estimate preprocessing parameters
 preproc.param <- train %>% 
   preProcess(method = c("center", "scale"))
@@ -244,11 +249,18 @@ Before performing LDA, consider:
   \item Be careful for the possible presence of outliers, and remember: ``\textit{any reasonable, formal or informal, procedure for rejecting outliers will prevent the worst}'' (P.J. Huber).
 \end{itemize}
 ```{r}
+
+help(lda)
+
 lda.iris <- lda(factor(Species)~ Sepal.Length + Sepal.Width, data=train_transformed)
 lda.iris
 ```
 
-The linear discriminant function from the results above can be identified using the Coefficients of Linear discriminants. The “proportion of trace”" represents the percentage separation achieved by each discriminant function.
+In the output above, aside from prior provability and group means, we have:
+\begin{itemize}
+  \item \textit{Coefficients of linear discriminants}: the linear combination of predictor variables that are used to form the LDA decision rule.
+  \item \textit{Proportion of trace}: the separation achieved by each discriminant function (in percentage).
+\end{itemize}
 
 Here is the model accuracy on training data.
 ```{r}
@@ -289,11 +301,37 @@ predmodel.test.lda = predict(lda.iris, newdata=test_transformed)
 confusionMatrix(as.factor(predmodel.test.lda$class), test_transformed$Species)
 ```
 
+
+Let's try LDA with all variables in iris data:
+```{r}
+
+irisLda <- lda(Species~.,data=iris)
+irisLda
+
+scalIris <- scale(as.matrix(iris[,-5]),scale=FALSE)
+
+irisProjection <- cbind(scalIris %*% irisLda$scaling, iris[,5,drop=FALSE])  
+
+p <- ggplot(data=irisProjection,aes(x=LD1,y=LD2,col=Species))
+p + geom_point()   
+
+```
+
+
+Geometric division
+```{r}
+
+partimat(factor(Species)~., 
+         data=iris, method = "lda")
+
+```
+
+
 \subsection{QDA}
 
 Next we will fit the model trough QDA 
 The command is similar to LDA and it outputs the prior probabilities and Group means. 
-Note that ‘prior probability’ and ‘Group Means’ values are same as of LDA.
+Note that "Prior Probabilities" and "Group Means" values are same as of LDA.
 
 ```{r}
 qda.iris <- qda(factor(Species)~ Sepal.Length + Sepal.Width, data=train_transformed)
@@ -314,10 +352,21 @@ partimat(factor(Species) ~ Sepal.Length + Sepal.Width,
          col.correct='green', col.wrong='red')
 ```
  
+ 
+ Let's also try QDA on all original variables
+```{r}
+irisQda <- lda(Species~.,data=iris)
+irisQda
+
+partimat(Species ~ ., data = iris, method = "qda", 
+         plot.matrix = TRUE, col.correct='green', col.wrong='red')
+```
+ 
+ 
 \section{$k$NN}
 
-We are going to use knn3Train() function on iris2 dataset.
-Let us train the knn with $k = 1,2,3,10$
+We are going to use the \textbf{knn3()} function within \textbf{caret} package on the iris2 data (i.e. working on 2 dimensions).
+Let's train the knn with $k = 1,2,3,10$
 ```{r}
 knn_iris1  <- knn3(factor(Species) ~ Sepal.Length + Sepal.Width, 
                    data=train_transformed, k = 1)
