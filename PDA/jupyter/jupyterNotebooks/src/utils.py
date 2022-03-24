@@ -24,8 +24,8 @@ def biplot_pca(transformed_features, pca, columns, lenght=3.0, scaling_factor = 
     visualize how "important" each one was in the multi-dimensional scaling
     
     USAGE:
-     > from src.utils import draw_vectors_pca
-     > draw_loadings_pca( pc_df, pca2d.components_, df_X_clean_scaled.columns.values,3.4)
+     > from src.utils import biplot_pca
+     > biplot_pca( pc_df, pca2d.components_, df_X_clean_scaled.columns.values,3.4)
     """
 
     # Scale the principal components by the max value in
