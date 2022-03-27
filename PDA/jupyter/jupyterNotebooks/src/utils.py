@@ -419,16 +419,15 @@ def get_importance_features(model, X, y, columns):
     plt.show() 
 
 def plot_decision_tree(model, X,y, column_names,class_names=['Benign','Malignant']):
-    from sklearn import tree
-    
-#     clf = tree.DecisionTreeClassifier(max_depth=3,min_samples_leaf=8)  
-#     clf.fit(X, y)
+    from sklearn import tree    
 
+    #  Plot a decision tree nodes
     fig = plt.figure(figsize=(25,20))
     out = tree.plot_tree(model, 
                        feature_names=column_names,  
                        class_names=class_names,
                        filled=True)
+    #  Plot a decision tree edges
     for o in out: 
         arrow = o.arrow_patch
         if arrow is not None:
