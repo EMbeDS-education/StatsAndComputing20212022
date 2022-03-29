@@ -29,7 +29,9 @@ library(ggplot2)    # for plots
 
 
 \subsection{Data}
-We will try to locally regress and smooth the median duration of unemployment (uempmed) based on the \textbf{economics} dataset from \textbf{ggplot2} package. We wil focus on the latest 120 months (10 years from 2005 to 2015)
+We will try to locally regress and smooth the median duration of unemployment (uempmed) based on the \textbf{economics} dataset from \textbf{ggplot2} package. 
+
+We will focus on the latest 120 months (10 years from 2005 to 2015)
 
 ```{r}
 data(economics)
@@ -51,6 +53,7 @@ plot(economics$date, economics$uempmed)
 lines(economics$date, economics$uempmed, col='grey60')
 
 ```
+
 Transform the dates into indexed from 1 (first measurement in 2005) to 120 (latest measurement in 2015).
 ```{r}
 economics$index <- 1:120
@@ -58,9 +61,33 @@ economics$index <- 1:120
 
 
 \section{LOWESS}
-Perform LOWESS in the stats package with the loess command
+
+
+Perform LOWESS using the \textbf{lowess} function within the stats package.
+
+It takes as inputs:
+\begin{itemize}
+  \item $x, y$: vectors giving the coordinates of the points in the scatter plot. 
+  \item $f$: smoother span. This gives the proportion of points in the plot which influence the smooth at each value. Larger values give more smoothness.
+  \item iter: the number of ‘robustifying’ iterations which should be performed. Using smaller values of iter will make lowess run faster.
+\end{itemize}
+
+\textit{Remark:} The initial fit is done using weighted least squares. 
+If iter > 0, further weighted fits are done using the product of the weights from the proximity of the $x$ values and case weights derived from the residuals at the previous iteration.
 ```{r}
-help(loess)
+help("lowess")
+
+plot(economics$uempmed ~ economics$index, main = "lowess(uempmed)")
+lines(lowess(economics$uempmed), col = 2)
+lines(lowess(economics$uempmed, f = .2), col = 3)
+
+legend(0, 25, c(paste("f = ", c("2/3 (default)", ".2"))), lty = 1, col = 2:3)
+```
+
+
+You can also perform LOWESS through the loess command in the stats package.
+```{r}
+help("loess")
 ```
 
 Let us focus on the following arguments:
@@ -69,11 +96,13 @@ Let us focus on the following arguments:
   \item \textbf{data:} the dataframe
   \item \textbf{span:} the parameter which controls the degree of smoothing
   \item \textbf{degree:} the degree of the polynomials to be used, normally 1 or 2
-  \item \textbf{family:} if gaussian fitting is by least-squares, and if symmetric a redescending estimator is used with Tukey's biweight function
 \end{itemize}
 
-Let's try different spans and degrees as inputs.
-```{r}
+Let's try different spans and degrees as inputs:
+```{r, fig.width = 12, fig.height = 6}
+
+par(mfrow=c(1,3))
+
 loess1_10 <- loess(uempmed ~ index, data = economics, span = 0.1, degree=1) 
 loess2_10 <- loess(uempmed ~ index, data = economics, span = 0.1, degree=2) 
 plot(economics$uempmed, main="LOESS span=0.1")
@@ -102,123 +131,18 @@ legend("topright", fill = c("red","blue"),
 
 ```
 
-The function loess has the option for fitting the local model through robust $M$-estimator (a generalization of Maximum Likelihood Estimators).
-They aresolved through an iterativeley least squares algorithm which trims extreme observations or down-weights the mild ones. 
-Specifically, it allows the user to choose the robust Tukey's biweight loss as opposed to the non-robust OLS.
-
-Let's see what the Tukey's biweight loss look alike first, keeping in mind that it is defined as follows:
-\begin{itemize} 
-  \item Tukey loss: 
-    $ \rho(r)= \begin{cases}\frac{c^{2}}{6}\left(1-\left[1-\left(\frac{r}{c}\right)^{2}\right]^{3}\right) & \text { if }|r| \leq c \\ \frac{c^{2}}{6} & \text { otherwise }\end{cases} $ 
-  \item Tukey loss derivative: 
-    $ \psi(r) = \rho^{\prime}(r)= \begin{cases}r\left[1-\left(\frac{r}{c}\right)^{2}\right]^{2} & \text { if }|r| \leq c \\ 0 & \text { otherwise }\end{cases} $
-  \item Tukey loss weight function: 
-    $ w_{\psi}(r) =  \frac{\psi(r)}{r} = \begin{cases} \left[1-\left(\frac{r}{c}\right)^{2}\right]^{2} & \text { if }|r| \leq c \\ 0 & \text { otherwise }\end{cases} $
-\end{itemize}
-```{r, fig.width = 12, fig.height = 6}
-
-library(ggpubr) # to create subpanels within a figure
-
-tukey_loss <- function(r, c) {
-  ifelse(abs(r) <= c,
-         c^2 / 6 * (1 - (1 - (r / c)^2)^3),
-         c^2 / 6)
-}
-tukey_loss_derivative <- function(r, c) {
-  ifelse(abs(r) <= c,
-         r * (1 - (r / c)^2)^2,
-         0)
-}
+The function loess has the option for fitting the local model through robust estimators similarly to lowess.
+See the \textbf{family} parameter for details (if "gaussian" fitting is by least-squares, and if "symmetric" a redescending estimator is used with Tukey's biweight function).
 
 
-r <- seq(-6, 6, length.out = 301)
-c <- 1:3
-
-# plot of tukey loss
-library(ggplot2)
-theme_set(theme_bw())
-loss_df <- data.frame(
-  r = rep(r, times = length(c)),
-  loss = unlist(lapply(c, function(x) tukey_loss(r, x))),
-  c = rep(c, each = length(r))
-)
-p1 <- ggplot(loss_df, aes(x = r, y = loss, col = factor(c))) +
-  geom_line(size=1) +
-  labs(title = "Plot of Tukey loss", y = "Tukey loss",
-       col = "c") +
-  theme(legend.position = "bottom")
-
-# plot of tukey loss derivative
-loss_deriv_df <- data.frame(
-  r = rep(r, times = length(c)),
-  loss_deriv = unlist(lapply(c, function(x) tukey_loss_derivative(r, x))),
-  c = rep(c, each = length(r))
-)
-p2 <- ggplot(loss_deriv_df, aes(x = r, y = loss_deriv, col = factor(c))) +
-  geom_line(size=1) +
-  labs(title = "Plot of derivative of Tukey loss", y = "Derivative of Tukey loss",
-       col = "c") +
-  theme(legend.position = "bottom")
-
-# plot of tukey loss weight function
-p3 <- ggplot(loss_deriv_df, aes(x = r, y = loss_deriv/r, col = factor(c))) +
-  geom_line(size=1) +
-  labs(title = "Plot of weight function of Tukey loss", y = "Weight function of Tukey loss",
-       col = "c") +
-  theme(legend.position = "bottom")
-
-figure <- ggarrange(p1, p2, p3,
-                    labels = c("A", "B", "C"),
-                    ncol = 3, nrow = 1)
-figure
-
-
-# compare it with OLS!
-p1ols <- ggplot(loss_df, aes(x = r, y = r^2/2)) +
-  geom_line(size=1) +
-  labs(title = "Plot OLS loss", y = "OLS loss",
-       col = "c")
-
-p2ols <- ggplot(loss_df, aes(x = r, y = r)) +
-  geom_line(size=1) +
-  labs(title = "Plot OLS loss derivative", y = "OLS loss derivative",
-       col = "c")
-
-p3ols <- ggplot(loss_df, aes(x = r, y = r/r)) +
-  geom_line(size=1) +
-  labs(title = "Plot OLS weight function", y = "OLS weight function",
-       col = "c")
-
-figure <- ggarrange(p1ols, p2ols,p3ols,
-                    labels = c("A", "B", "C"),
-                    ncol = 3, nrow = 1)
-figure
-
-```
-
-
-
-To use this option in loess, we use the argument family="symmetric".
+Note that ggplot uses loess in its geom_smooth function.
+But we should be careful for the default parameters used in there.
 ```{r}
-# span=0.25
-loess1_25sim <- loess(uempmed ~ index, data = economics, span = 0.25, 
-                      degree=1, family="symmetric")
-
-# compare it with the default OLS
-plot(economics$uempmed, main="LOESS span=0.25")
-lines(predict(loess1_25), col='red')
-lines(predict(loess1_25sim), col='green',)
-legend("topright", fill = c("red","green"), 
-       legend = c("OLS degree 1", "Tukey degree 1"))
-
+economics %>% ggplot(aes(index,uempmed)) + geom_point() + 
+  geom_smooth()
 ```
 
-Note that ggplot uses loess in its geom_smooth function
-```{r}
-economics %>% ggplot(aes(index,uempmed)) + geom_point() + geom_smooth()
-```
-
-We should be careful for the default parameters used in geom_smooth, but we can change them as follows:
+We can change them as follows:
 ```{r}
 economics %>% ggplot(aes(index,uempmed)) + geom_point() + 
   geom_smooth(method="loess", span=0.15, methods.args = list(degree=1))
@@ -228,10 +152,11 @@ economics %>% ggplot(aes(index,uempmed)) + geom_point() +
 
 The general idea of smoothing is to group data points into strata in which the associated trend changes "slowly". 
 For this reason we can assume the trend to be constant within a small window. 
-In our case we can assume that the unemployment remains approximately the same within a given 3-months' time window.
 
-The assumption implies that the average of the values in the window (in this case: 3 months) provides a good estimate. 
-By computing this mean for every point (moving the window), we obtain a smooth estimate of the underlying curve.
+For our example, we will assume that unemployment remains approximately constant within a given 3-months time window.
+
+The assumption implies that the average of the values in the window (in this case 3 months) provides a good estimate. 
+By computing this mean for every interval (i.e. moving the window), we obtain a smooth estimate of the underlying curve.
 
 The command that we are going to use is \textbf{ksmooth}.
 ```{r}
@@ -239,7 +164,7 @@ help(ksmooth)
 ```
 
 If the mean is computed giving equal weights to the points belonging to each window, we talk about "box" kernel.
-The result is a list with the original \textbf{x} and the new smoothed values \textbf{y}.
+The result is a list with the original $x$ and the new smoothed values $y$.
 ```{r}
 window <- 3
 box_smooth <- ksmooth(economics$index, economics$uempmed, kernel='box', bandwidth = window)
@@ -249,20 +174,21 @@ box_smooth
 Let's plot our result using ggplot (unlike base R plots).
 ```{r}
 economics %>% mutate(smooth = box_smooth$y) %>% ggplot(aes(index, uempmed)) + 
-  geom_point(size=3, alpha=0.5, color='grey') + geom_line(aes(index, smooth), color='red')
+  geom_point(size=3, alpha=0.2, color='black') + geom_line(aes(index, smooth), color='red')
 ```
 
 The result from the bin box smoother is quite wiggly. 
 
 The reasons for this can be the bandwidth (too small) or the uniform weights. 
+
 We can change units' weights by giving larger weights to the ones in the "central" portion of the window, thus the points at the edges will receive very little weights.
 
-Here we will use a weighted average, where the weights are provided by a normal density.
+Here we will use a weighted average, where weights are provided by a normal density.
 ```{r}
 norm_smooth <- ksmooth(economics$index, economics$uempmed, kernel='normal', bandwidth = window)
 
 economics %>% mutate(smooth = norm_smooth$y) %>% ggplot(aes(index, uempmed)) + 
-  geom_point(size=3, alpha=0.5, color='grey') + geom_line(aes(index, smooth), color='red')
+  geom_point(size=3, alpha=0.2, color='black') + geom_line(aes(index, smooth), color='red')
 ```
 
 It is still wiggly! We need to change the bandwidth.
@@ -273,7 +199,7 @@ norm_smooth <- ksmooth(economics$index, economics$uempmed, kernel='normal',
 
 economics %>% mutate(smooth = norm_smooth$y) %>% 
   ggplot(aes(index, uempmed)) + 
-  geom_point(size=3, alpha=0.5, color='grey') + 
+  geom_point(size=3, alpha=0.2, color='black') + 
   geom_line(aes(index, smooth), color='red')
 
 ```
@@ -311,3 +237,7 @@ ggplot(df, aes(x=weight)) +
   geom_histogram(aes(y=..density..), colour="black", fill="grey")+
   geom_density(alpha=.2, fill="#FF6666", adjust=2) 
 ```
+
+\textit{Spoiler:}	 it is a multiplicative bandwidth adjustment. 
+This makes it possible to adjust the bandwidth while still using a bandwidth estimator. 
+For example, adjust = 1/2 means use half of the default bandwidth.
