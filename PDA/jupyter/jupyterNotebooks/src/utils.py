@@ -24,8 +24,8 @@ def biplot_pca(transformed_features, pca, columns, lenght=3.0, scaling_factor = 
     visualize how "important" each one was in the multi-dimensional scaling
     
     USAGE:
-     > from src.utils import draw_vectors_pca
-     > draw_loadings_pca( pc_df, pca2d.components_, df_X_clean_scaled.columns.values,3.4)
+     > from src.utils import biplot_pca
+     > biplot_pca( pc_df, pca2d.components_, df_X_clean_scaled.columns.values,3.4)
     """
 
     # Scale the principal components by the max value in
@@ -419,16 +419,15 @@ def get_importance_features(model, X, y, columns):
     plt.show() 
 
 def plot_decision_tree(model, X,y, column_names,class_names=['Benign','Malignant']):
-    from sklearn import tree
-    
-#     clf = tree.DecisionTreeClassifier(max_depth=3,min_samples_leaf=8)  
-#     clf.fit(X, y)
+    from sklearn import tree    
 
+    #  Plot a decision tree nodes
     fig = plt.figure(figsize=(25,20))
     out = tree.plot_tree(model, 
                        feature_names=column_names,  
                        class_names=class_names,
                        filled=True)
+    #  Plot a decision tree edges
     for o in out: 
         arrow = o.arrow_patch
         if arrow is not None:
