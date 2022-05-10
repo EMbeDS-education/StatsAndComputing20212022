@@ -1,88 +1,160 @@
 ---
-title: "Ridge and Lasso"
-author: "J. Di Iorio, F. Chiaromonte"
-date: "3/21/2021"
-output: pdf_document
+title: "*Ridge and Lasso*"
+author: "L. Insolia, F. Chiaromonte (special thanks to J. Di Iorio)"
+date: "May 10th 2022"
+output:
+  pdf_document:
+    toc: true
+  html_document: default
+urlcolor: blue
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) # just to clean the pdf files, not recommended in practice!
 ```
 
-\section{Libraries}
-We are going to use some new (glmnet) and old libraries.
+
+\section{Introduction}
+
+\subsection{Libraries}
+
+We are going to use:
+\begin{itemize}
+  \item \textbf{glmnet}: \textit{Lasso and Elastic-Net Regularized Generalized Linear Models}
+  \item \textbf{tidyverse}: \textit{Easily Install and Load the 'Tidyverse'}
+  \item \textbf{caret}: \textit{Classification and Regression Training}
+  \item \textbf{ggplot2}: \textit{Create Elegant Data Visualisations Using the Grammar of Graphics}
+\end{itemize}
+
 
 ```{r}
-library(tidyverse) # for data manipulation and visualization
-library(ggplot2) # for plots
-library(caret)
-library(glmnet) # for ridge and lasso
+library(glmnet)     # ridge and lasso for GLMs
+library(tidyverse)  # data manipulation and visualization
+library(caret)      # statistical learning techniques
+library(ggplot2)    # plots
 ```
 
-\section{Data}
-We will use the Body Fat dataset available in the Datasets folder of our course.
-The data concerns a sample of 252 men, and contains 15 different variables. We want to understand if we can reliably describe and predict body fat percentage on the basis of these variables, using regression. For age, we only have a binary indicator separating men below and above 45 years. The body measurements, on the other hand, are all continuous variables. 
+\subsection{Data}
+
+We will use the \textbf{Body Fat dataset} (which is available in the [Datasets folder](https://github.com/EMbeDS-education/StatsAndComputing20212022/wiki/Datasets) of our course). 
+
+The data concerns a sample of 252 men, and contains 15 variables: 
+\begin{enumerate}
+  \item	Density of the body, determined from underwater weighing
+  \item	Percentage of body fat, calculated as a function of the Density according to Siri’s equation: (495/Density) – 450.
+  \item	Indicator for Age group (binary; 0: up to 45 years, 1: over 45)
+  \item	Weight (lbs)
+  \item	Height (inches)
+  \item	Neck circumference (cm)
+  \item	Chest circumference (cm)
+  \item	Abdomen circumference (cm)
+  \item	Hip circumference (cm)
+  \item	Thigh circumference (cm)
+  \item	Knee circumference (cm)
+  \item	Ankle circumference (cm)
+  \item	Biceps circumference (cm)
+  \item	Forearm circumference (cm)
+  \item	Wrist circumference (cm)
+\end{enumerate}
+
+We want to understand if we can reliably describe and predict body fat percentage on the basis of these variables, using regression. For age, we only have a binary indicator separating men below and above 45 years. The body measurements, on the other hand, are all continuous variables. 
+Please see the 
+[data description file](https://github.com/EMbeDS-education/StatsAndComputing20212022/raw/main/datasets/DesciptionBodyFatdataset.doc) for more details.
 ```{r}
 df <- read.table('BODY_FAT.TXT', header=TRUE)
 names(df)
 ```
 
-We want to predict "SiriBF." using the other features excepted "Density".
+We want to predict "SiriBF." using the other features, aside from "Density".
 So we drop the "Density" column.
 ```{r}
 df <- df[,-1]
 ```
 
 
-\section{Ridge}
-Let us perform ridge regression using the GLMnet package.
-Let us identify predictors and indipendent variable
+\section{Penalized regression}
+
+We will perform ridge/lasso penalization through the \textbf{glmnet} package.
+Let us identify predictors and response variable
 ```{r}
 # getting the predictors
-x_var <- data.matrix(df[,-1])
-# getting the indipendent variable
+x_var <- data.matrix(df[,-1])     # NOTE: glmnet requires a matrix structure
+# getting the response variable
 y_var <- df[,"SiriBF."]
 ```
 
-Now we can perform ridge regression using glmnet with $alpha = 0$. We are not using a pre-defined set of $\lambda$ but we can supply a user-defined lambda sequence to try in the $lambda$ argument.
+Let's have a look a the glmnet function:
+```{r}
+help(glmnet)
+```
+
+Note that:
+\begin{itemize}
+  \item $x$: input matrix
+  \item $y$: response variable
+  \item $\alpha$ is the elastic-net mixing parameter with range [0, 1]. 
+Namely. $\alpha = 1$ is the lasso (default) and $\alpha = 0$ is the ridge.
+  \item standardize is a logical flag for $x$ variable standardization, prior to fitting the model sequence. The coefficients are always returned on the original scale. Default is standardize=TRUE.
+\end{itemize}
+
+\subsection{Ridge}
+
+To perform ridge regression, we run glmnet with $\alpha = 0$. 
+The $\lambda$'s sequence is internally computed by the package itself -- although a user-defined sequence can be provided as a $lambda$ argument.
 ```{r}
 ridge <- glmnet(x_var, y_var, alpha=0)
 summary(ridge)
 ```
-The summary is different from the one we know from linear regression. The reason behind this fact is that ridge regression involves tuning a hyperparameter, $\lambda$. The code above runs the model several times for different values of lambda. We can see each single result running "ridge".
+The summary is quite different than the one for linear regression, since ridge regression requires the tuning of $\lambda$. 
+The code above fits a ridge regression for each $\lambda$ value, and we have access to each of these model estimates.
 
-We can automate this task of finding the optimal lambda value using the cv.glmnet function. The function does k-fold cross-validation for glmnet, produces a plot, and returns a value (the best) for lambda.
+We can plot the panalization path as follows:
+```{r}
+dim(ridge$beta)
+plot(ridge, xvar="lambda")
+```
+
+
+We can automate the task of finding the optimal lambda value using the \textbf{cv.glmnet} function. 
+This performs a k-fold cross-validation for glmnet, produces a plot, and returns ``optimal'' $\lambda$ values.
 ```{r}
 cv_ridge <- cv.glmnet(x_var, y_var, alpha = 0)
 cv_ridge
 ```
 
-Two particular values of lambda are highlighted: the minimum (min) and the largest value of lambda such that error is within 1 standard error of the minimum (1se). We can plot them in this way:
-```{r}
-plot(cv_ridge)
-```
-To see the two lambdas aforementioned:
+Two particular values of $\lambda$ are highlighted: the minimum (min) and the largest value of lambda such that error is within 1 standard error of the minimum (1se). 
 ```{r}
 cv_ridge$lambda.min
 cv_ridge$lambda.1se
 ```
 
-Let us see how beta coefficients changes by modifying lambda
+We can visualize them in this way:
+```{r}
+plot(cv_ridge)
+```
+
+Let us see again how the regression coefficients change by modifying $\lambda$, highlighting the min and 1se values:
 ```{r}
 lbs_fun <- function(fit, offset_x=1, ...) {
   L <- length(fit$lambda)
   x <- log(fit$lambda[L])+ offset_x
   y <- fit$beta[, L]
   labs <- names(y)
-  text(x, y, labels=labs, ...)
+  text(x, y, labels=labs, cex=0.75, ...)
 }
 plot(ridge, xvar = "lambda", label=T)
 lbs_fun(ridge)
-abline(v=cv_ridge$lambda.min, col = "red", lty=2)
-abline(v=cv_ridge$lambda.1se, col="blue", lty=2)
+abline(v=log(cv_ridge$lambda.min), col = "red", lty=2)
+abline(v=log(cv_ridge$lambda.1se), col="blue", lty=2)
+legend(x = "bottomright",
+       legend = c("lambda min", "lambda 1se"),
+       lty = c(2, 2),
+       col = c("red", "blue"))
 ```
 
-Let us rebuilt the model and see the coefficient with the minimum $\lambda$.
+Let's re-fit the model and see the estimates associated to the minimum $\lambda$.
 ```{r}
 min_ridge <- glmnet(x_var, y_var, alpha=0, lambda= cv_ridge$lambda.min)
 coef(min_ridge)
@@ -90,7 +162,7 @@ coef(min_ridge)
 
 We can use this model to make predictions on the training set.
 ```{r}
-# Make predictions on the test data
+# Make predictions on the training data
 predictions <- min_ridge %>% predict(x_var) %>% as.vector()
 # Model performance metrics
 data.frame(
@@ -99,63 +171,68 @@ data.frame(
 )
 ```
 
-Be careful! We are making predictions and assessing the goofness of our model on the training set. Is it the best decision? What would you suggest me to do?
+Be careful though! We are making predictions and assessing the goodness of fit based on training data. Is it the best choice? Do you have any other suggestions?
 
-\section{Lasso}
-Let us perform ridge regression using the GLMnet package.
-Let us identify predictors and indipendent variable
-```{r}
-# getting the predictors
-x_var <- data.matrix(df[,-1])
-# getting the indipendent variable
-y_var <- df[,"SiriBF."]
-```
+\subsection{Lasso}
 
-Now we can perform ridge regression using glmnet with $alpha = 1$. We are not using a pre-defined set of $\lambda$ but we can supply a user-defined lambda sequence to try in the $lambda$ argument.
+Let us now perform Lasso regression using the \textbf{glmnet} package.
+We follow the same approach as in Ridge regression, but set $\alpha = 1$.
 ```{r}
 lasso <- glmnet(x_var, y_var, alpha=1)
 summary(lasso)
 ```
 
-Once again, we had to tune a hyperparameter, $\lambda$. The code above runs the model several times for different values of lambda. We can see each single result running "lasso".
+Let's have a look at the selection path:
+```{r}
+plot(lasso, xvar="lambda")
+```
 
-Identically to lasso regression, we can automate this task of finding the optimal lambda value using the cv.glmnet function which performs a k-fold cross-validation for glmnet, produces a plot, and returns a value (the best) for lambda.
+
+Once again, we need to tune the sparsity parameter $\lambda$.
+We use k-fold cross-validation through the \textbf{cv.glmnet} function.
 ```{r}
 cv_lasso <- cv.glmnet(x_var, y_var, alpha = 1)
 cv_lasso
 plot(cv_lasso)
 ```
 
-Once again we have the min and the 1se lambda. It is straightforward to see that the number of Nonzero predictors is lower than the ones in Ridge regression.
+Also here, it outputs the min and the 1se $\lambda$. 
+As expected, the number of non-zero coefficients (which is printed on top of the previous plot) is lower than the one for Ridge regression.
 
-Now, let us see how beta coefficients changes by modifying lambda
+Let us see again how the regression coefficients change by modifying $\lambda$:
 ```{r}
 lbs_fun <- function(fit, offset_x=1, ...) {
   L <- length(fit$lambda)
   x <- log(fit$lambda[L])+ offset_x
   y <- fit$beta[, L]
   labs <- names(y)
-  text(x, y, labels=labs, ...)
+  text(x, y, labels=labs, cex=0.75, ...)
 }
 plot(lasso, xvar = "lambda", label=T)
 lbs_fun(lasso)
-abline(v=cv_lasso$lambda.min, col = "red", lty=2)
-abline(v=cv_lasso$lambda.1se, col="blue", lty=2)
+abline(v=log(cv_lasso$lambda.min), col = "red", lty=2)
+abline(v=log(cv_lasso$lambda.1se), col="blue", lty=2)
+legend(x = "bottomright",
+       legend = c("lambda min", "lambda 1se"),
+       lty = c(2, 2),
+       col = c("red", "blue"))
 ```
 
-Let us rebuilt the model and see the coefficient with the minimum $\lambda$.
+Let us rebuilt the model and compare the estimated coefficients for min and 1se $\lambda$.
 ```{r}
 min_lasso <- glmnet(x_var, y_var, alpha=1, lambda= cv_lasso$lambda.min)
-coef(min_lasso)
-
 se_lasso <- glmnet(x_var, y_var, alpha=1, lambda= cv_lasso$lambda.1se)
-coef(se_lasso)
+
+lasso_mat <- cbind(coef(min_lasso), coef(se_lasso))
+colnames(lasso_mat) <- c("min", "1se")
+lasso_mat
+
 ```
 
 We can use this model to make predictions on the training set.
 ```{r}
-# Make predictions on the test data
-predictions <- min_lasso %>% predict(x_var) %>% as.vector()
+# Make predictions on the training data
+predictions <- se_lasso %>% predict(x_var) %>% as.vector()
 # Model performance metrics
 data.frame(
   RMSE = RMSE(predictions, y_var),
