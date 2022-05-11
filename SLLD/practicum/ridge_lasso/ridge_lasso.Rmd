@@ -239,3 +239,50 @@ data.frame(
   Rsquare = R2(predictions, y_var)
 )
 ```
+
+
+Let's try to overfit and look at the MSE increase again!
+```{r}
+# take all pairwise interactions
+dim(x_var)
+newx <- as.data.frame(x_var)
+newx <- model.matrix(~ .^2, data=newx)
+dim(newx)
+colnames(newx)
+
+# take their squared terms too!
+newx <- as.matrix(newx)
+newx <- cbind(newx, newx[, 2:ncol(newx)]^2)
+dim(newx)
+
+cv_lasso <- cv.glmnet(newx, y_var, alpha = 1)
+cv_lasso
+plot(cv_lasso)
+coef(cv_lasso)
+```
+
+
+However, lasso assumptions are unlikely to hold due to strong correlations between predictors.
+```{r}
+library(corrplot)
+
+# original data
+corrplot(cor(x_var))
+
+# transformed data
+newx = as.data.frame(newx[, 2:ncol(newx)])
+corrplot(cor(newx), tl.pos='n')
+```
+
+\section{Nonconvex penalization methods}
+
+If you want to try nonconvex penalization methods, have a look at the \textbf{ncvreg} package!
+It has a very similar syntax than glmnet.
+```{r}
+library(ncvreg)
+
+dim(newx)
+cv_scad <- cv.ncvreg(as.matrix(newx), y_var)
+plot(cv_scad)
+```
+
