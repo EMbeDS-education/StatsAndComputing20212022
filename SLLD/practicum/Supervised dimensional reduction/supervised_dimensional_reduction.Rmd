@@ -16,9 +16,9 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE) # just to clean the pdf 
 ```
 
 
-\section{Introduction}
+# Introduction
 
-\subsection{Libraries}
+## Libraries
 
 We are going to use: 
 
@@ -32,7 +32,7 @@ library(dr)         # SIR
 library(factoextra) # PCA-related functions
 ```
 
-\subsection{Data}
+## Data
 
 Let’s first define a function to generate Gaussian data. 
 This function takes four arguments:
@@ -86,7 +86,7 @@ summary(df)
 
 And plot our simulated data.
 ```{r}
-library(plotly)
+
 fig <- plot_ly(df, x = ~x, y = ~y, z = ~z, 
                color = ~class, colors = c('#b3e378', '#81e5f0', '#ed5391'))
 fig <- fig %>% add_markers()
@@ -96,9 +96,9 @@ fig <- fig %>% layout(scene = list(xaxis = list(title = 'x'),
 fig
 ```
 
-\section{LDA vs PCA}
+# LDA vs PCA
 
-\subsection{LDA}
+## LDA
 
 Let's perform LDA:
 ```{r}
@@ -130,7 +130,7 @@ ggarrange(p1,p2,
 
 ```
 
-\subsection{PCA}
+## PCA
 
 Now let us perform PCA.
 ```{r}
@@ -147,7 +147,7 @@ fviz_pca_biplot(pc, col.var= "#2E9FDF",
 
 Note that just considering the first principal component it is impossibile to notice differences within the three groups (all groups are overlapping).
 
-\section{SIR}
+# SIR
 
 Now we use the SIR (Sliced Inversion Regression) in the dr package
 ```{r}
